@@ -18,7 +18,32 @@ define('FORM_STASH_VERSION', '0.1.0');
 define('FORM_STASH_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('FORM_STASH_PLUGIN_URL', plugin_dir_url(__FILE__));
 
-// Add admin menu
+/**
+ * Create submissions table on plugin activation
+ */
+function form_stash_activate() {
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'form_stash_submissions';
+    $charset_collate = $wpdb->get_charset_collate();
+    
+    $sql = "CREATE TABLE IF NOT EXISTS $table_name (
+        id mediumint(9) NOT NULL AUTO_INCREMENT,
+        name varchar(100) NOT NULL,
+        email varchar(100) NOT NULL,
+        message text NOT NULL,
+        date_submitted datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        PRIMARY KEY  (id)
+    ) $charset_collate;";
+    
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+    dbDelta($sql);
+}
+register_activation_hook(__FILE__, 'form_stash_activate');
+
+/**
+ * Add admin menu
+ */
 function form_stash_admin_menu() {
     add_menu_page(
         'Form Stash',
@@ -29,10 +54,21 @@ function form_stash_admin_menu() {
         'dashicons-feedback',
         30
     );
+    
+    add_submenu_page(
+        'form-stash',
+        'Submissions',
+        'Submissions',
+        'manage_options',
+        'form-stash-submissions',
+        'form_stash_submissions_page'
+    );
 }
 add_action('admin_menu', 'form_stash_admin_menu');
 
-// Admin page content
+/**
+ * Admin main page content
+ */
 function form_stash_admin_page() {
     ?>
     <div class="wrap">
@@ -44,6 +80,117 @@ function form_stash_admin_page() {
             <p>This is a simple test form that you can embed using the shortcode below:</p>
             <code>[form_stash_simple]</code>
         </div>
+    </div>
+    <?php
+}
+
+/**
+ * Submissions page content
+ */
+function form_stash_submissions_page() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'form_stash_submissions';
+    
+    // Handle deletion
+    if (isset($_GET['action']) && $_GET['action'] === 'delete' && isset($_GET['id'])) {
+        $id = intval($_GET['id']);
+        $wpdb->delete($table_name, ['id' => $id], ['%d']);
+        echo '<div class="notice notice-success is-dismissible"><p>Submission deleted successfully.</p></div>';
+    }
+    
+    // Handle bulk actions
+    if (isset($_POST['action']) && $_POST['action'] === 'delete_selected' && isset($_POST['submission_ids'])) {
+        $ids = array_map('intval', $_POST['submission_ids']);
+        foreach ($ids as $id) {
+            $wpdb->delete($table_name, ['id' => $id], ['%d']);
+        }
+        echo '<div class="notice notice-success is-dismissible"><p>Selected submissions deleted successfully.</p></div>';
+    }
+    
+    // Get submissions
+    $submissions = $wpdb->get_results("SELECT * FROM $table_name ORDER BY date_submitted DESC");
+    ?>
+    <div class="wrap">
+        <h1>Form Submissions</h1>
+        
+        <?php if (empty($submissions)) : ?>
+            <div class="card">
+                <p>No submissions found.</p>
+            </div>
+        <?php else : ?>
+            <form method="post" action="">
+                <div class="tablenav top">
+                    <div class="alignleft actions bulkactions">
+                        <label for="bulk-action-selector-top" class="screen-reader-text">Select bulk action</label>
+                        <select name="action" id="bulk-action-selector-top">
+                            <option value="-1">Bulk Actions</option>
+                            <option value="delete_selected">Delete</option>
+                        </select>
+                        <input type="submit" id="doaction" class="button action" value="Apply">
+                    </div>
+                    <br class="clear">
+                </div>
+                
+                <table class="wp-list-table widefat fixed striped">
+                    <thead>
+                        <tr>
+                            <td id="cb" class="manage-column column-cb check-column">
+                                <input id="cb-select-all-1" type="checkbox">
+                            </td>
+                            <th scope="col" class="manage-column column-id">ID</th>
+                            <th scope="col" class="manage-column column-name">Name</th>
+                            <th scope="col" class="manage-column column-email">Email</th>
+                            <th scope="col" class="manage-column column-message">Message</th>
+                            <th scope="col" class="manage-column column-date">Date</th>
+                            <th scope="col" class="manage-column column-actions">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($submissions as $submission) : ?>
+                            <tr>
+                                <th scope="row" class="check-column">
+                                    <input type="checkbox" name="submission_ids[]" value="<?php echo $submission->id; ?>">
+                                </th>
+                                <td><?php echo $submission->id; ?></td>
+                                <td><?php echo esc_html($submission->name); ?></td>
+                                <td><?php echo esc_html($submission->email); ?></td>
+                                <td><?php echo wp_trim_words(esc_html($submission->message), 10, '...'); ?></td>
+                                <td><?php echo date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($submission->date_submitted)); ?></td>
+                                <td>
+                                    <a href="<?php echo admin_url('admin.php?page=form-stash-submissions&action=view&id=' . $submission->id); ?>" class="button button-small">View</a>
+                                    <a href="<?php echo admin_url('admin.php?page=form-stash-submissions&action=delete&id=' . $submission->id); ?>" class="button button-small" onclick="return confirm('Are you sure you want to delete this submission?')">Delete</a>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </form>
+            
+            <?php
+            // Handle detailed view
+            if (isset($_GET['action']) && $_GET['action'] === 'view' && isset($_GET['id'])) {
+                $id = intval($_GET['id']);
+                $submission = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $id));
+                
+                if ($submission) {
+                    ?>
+                    <div class="card" style="margin-top: 20px; max-width: 800px; padding: 20px;">
+                        <h2>Submission Details</h2>
+                        <p><strong>ID:</strong> <?php echo $submission->id; ?></p>
+                        <p><strong>Name:</strong> <?php echo esc_html($submission->name); ?></p>
+                        <p><strong>Email:</strong> <?php echo esc_html($submission->email); ?></p>
+                        <p><strong>Date:</strong> <?php echo date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($submission->date_submitted)); ?></p>
+                        <p><strong>Message:</strong></p>
+                        <div style="background: #f9f9f9; padding: 15px; border: 1px solid #ddd; border-radius: 4px;">
+                            <?php echo nl2br(esc_html($submission->message)); ?>
+                        </div>
+                    </div>
+                    <?php
+                }
+            }
+            ?>
+            
+        <?php endif; ?>
     </div>
     <?php
 }
@@ -73,19 +220,27 @@ function form_stash_shortcode() {
         </form>
         
         <?php
-        // Simple form processing
+        // Form processing
         if (isset($_POST['form_stash_submit'])) {
+            global $wpdb;
+            $table_name = $wpdb->prefix . 'form_stash_submissions';
+            
             $name = sanitize_text_field($_POST['name'] ?? '');
             $email = sanitize_email($_POST['email'] ?? '');
             $message = sanitize_textarea_field($_POST['message'] ?? '');
             
-            echo '<div class="form-stash-success">Thank you for your submission!</div>';
+            // Save to database
+            $wpdb->insert(
+                $table_name,
+                array(
+                    'name' => $name,
+                    'email' => $email,
+                    'message' => $message
+                ),
+                array('%s', '%s', '%s')
+            );
             
-            // For debugging purposes
-            echo '<!-- Form data received: ' . 
-                esc_html($name) . ', ' . 
-                esc_html($email) . ', ' . 
-                esc_html(substr($message, 0, 20)) . '... -->';
+            echo '<div class="form-stash-success">Thank you for your submission!</div>';
         }
         ?>
     </div>
@@ -149,14 +304,11 @@ function form_stash_styles() {
 add_action('wp_head', 'form_stash_styles');
 add_action('admin_head', 'form_stash_styles');
 
-// Plugin activation hook
-function form_stash_activate() {
-    // Nothing to do for simple version
-}
-register_activation_hook(__FILE__, 'form_stash_activate');
-
 // Plugin deactivation hook
-function form_stash_deactivate() {
-    // Nothing to do for simple version
+function form_stash_deactivate($delete_data = false) {
+    if ($delete_data) {
+        global $wpdb;
+        $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}form_stash_submissions");
+    }
 }
 register_deactivation_hook(__FILE__, 'form_stash_deactivate');
