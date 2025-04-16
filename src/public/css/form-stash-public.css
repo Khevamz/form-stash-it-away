@@ -1,0 +1,81 @@
+
+.form-stash-form {
+  max-width: 100%;
+  margin: 0 auto;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+}
+
+.form-stash-form .form-title {
+  margin-bottom: 1.5rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.form-stash-form .form-field {
+  margin-bottom: 1.25rem;
+}
+
+.form-stash-form label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.form-stash-form .required {
+  color: #e3342f;
+  margin-left: 0.25rem;
+}
+
+.form-stash-form input[type="text"],
+.form-stash-form input[type="email"],
+.form-stash-form textarea,
+.form-stash-form select {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.25rem;
+  font-size: 1rem;
+}
+
+.form-stash-form .checkbox-field {
+  display: flex;
+  align-items: center;
+}
+
+.form-stash-form .checkbox-field input {
+  margin-right: 0.5rem;
+}
+
+.form-stash-form .checkbox-field label {
+  margin-bottom: 0;
+}
+
+.form-stash-form .submit-button {
+  background-color: #3b82f6;
+  color: white;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 0.25rem;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.form-stash-form .submit-button:hover {
+  background-color: #2563eb;
+}
+
+.form-stash-form .error {
+  color: #e3342f;
+  padding: 1rem;
+  background-color: #fee2e2;
+  border-radius: 0.25rem;
+  margin-bottom: 1rem;
+}
+
+.form-stash-form .form-success {
+  padding: 1rem;
+  background-color: #d1fae5;
+  border-radius: 0.25rem;
+  color: #065f46;
+}
